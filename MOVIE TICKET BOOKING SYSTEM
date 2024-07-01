@@ -1,0 +1,331 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import sqlite3
+import random
+
+
+# Database setup
+def setup_database():
+    conn = sqlite3.connect('movie_booking.db')
+    c = conn.cursor()
+
+    # Create tables
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        password TEXT
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS movies (
+        movie_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        movie_name TEXT,
+        city TEXT,
+        theater TEXT,
+        timing TEXT,
+        total_tickets INTEGER,
+        available_tickets INTEGER
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS bookings (
+        booking_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        movie_id INTEGER,
+        number_of_tickets INTEGER,
+        receipt_id TEXT,
+        FOREIGN KEY(user_id) REFERENCES users(user_id),
+        FOREIGN KEY(movie_id) REFERENCES movies(movie_id)
+    )''')
+
+    # Insert sample data
+    c.execute("DELETE FROM movies")  # Clear existing data
+
+    movies = [
+        ("Leo", "Chennai", "IMAX", "10:00 AM", 100, 100),
+        ("Interstellar", "Chennai", "Multiplex", "01:00 PM", 100, 100),
+        ("Gravity", "Chennai", "ARRS", "04:00 PM", 100, 100),
+        ("Martian", "Chennai", "Ascars", "07:00 PM", 100, 100),
+        ("Beast", "Chennai", "BIG Cinemas", "10:00 PM", 100, 100),
+        ("Leo", "Kovai", "IMAX", "10:00 AM", 100, 100),
+        ("Interstellar", "Kovai", "Multiplex", "01:00 PM", 100, 100),
+        ("Gravity", "Kovai", "ARRS", "04:00 PM", 100, 100),
+        ("Martian", "Kovai", "Ascars", "07:00 PM", 100, 100),
+        ("Beast", "Kovai", "BIG Cinemas", "10:00 PM", 100, 100),
+        ("Leo", "Salem", "IMAX", "10:00 AM", 100, 100),
+        ("Interstellar", "Salem", "Multiplex", "01:00 PM", 100, 100),
+        ("Gravity", "Salem", "ARRS", "04:00 PM", 100, 100),
+        ("Martian", "Salem", "Ascars", "07:00 PM", 100, 100),
+        ("Beast", "Salem", "BIG Cinemas", "10:00 PM", 100, 100),
+        ("Leo", "Madurai", "IMAX", "10:00 AM", 100, 100),
+        ("Interstellar", "Madurai", "Multiplex", "01:00 PM", 100, 100),
+        ("Gravity", "Madurai", "ARRS", "04:00 PM", 100, 100),
+        ("Martian", "Madurai", "Ascars", "07:00 PM", 100, 100),
+        ("Beast", "Madurai", "BIG Cinemas", "10:00 PM", 100, 100),
+        ("Leo", "Tiruchy", "IMAX", "10:00 AM", 100, 100),
+        ("Interstellar", "Tiruchy", "Multiplex", "01:00 PM", 100, 100),
+        ("Gravity", "Tiruchy", "ARRS", "04:00 PM", 100, 100),
+        ("Martian", "Tiruchy", "Ascars", "07:00 PM", 100, 100),
+        ("Beast", "Tiruchy", "BIG Cinemas", "10:00 PM", 100, 100)
+    ]
+
+    c.executemany('''INSERT INTO movies (movie_name, city, theater, timing, total_tickets, available_tickets) 
+                     VALUES (?, ?, ?, ?, ?, ?)''', movies)
+
+    conn.commit()
+    conn.close()
+
+
+setup_database()
+
+
+class MovieTicketBookingSystem(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Movie Ticket Booking System")
+        self.geometry("800x600")
+        self.current_user_id = None
+
+        self.create_widgets()
+
+    def create_widgets(self):
+        # Create a notebook (tab control)
+        notebook = ttk.Notebook(self)
+
+        # Create frames for each tab
+        self.login_frame = ttk.Frame(notebook)
+        self.select_movie_frame = ttk.Frame(notebook)
+        self.booking_frame = ttk.Frame(notebook)
+        self.cancel_frame = ttk.Frame(notebook)
+        self.theater_display_frame = ttk.Frame(notebook)
+
+        notebook.add(self.login_frame, text='Login')
+        notebook.add(self.select_movie_frame, text='Select Movie')
+        notebook.add(self.theater_display_frame, text='Theaters')
+        notebook.add(self.booking_frame, text='Book Tickets')
+        notebook.add(self.cancel_frame, text='Cancel Tickets')
+
+        notebook.pack(expand=True, fill='both', padx=10, pady=10)
+
+        self.create_login_page()
+        self.create_movie_selection_page()
+        self.create_theater_display_page()
+        self.create_booking_page()
+        self.create_cancel_page()
+
+    def create_login_page(self):
+        # Login page design
+        ttk.Label(self.login_frame, text="Username:").grid(row=0, column=0, padx=10, pady=10)
+        self.username_entry = ttk.Entry(self.login_frame)
+        self.username_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        ttk.Label(self.login_frame, text="Password:").grid(row=1, column=0, padx=10, pady=10)
+        self.password_entry = ttk.Entry(self.login_frame, show="*")
+        self.password_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        ttk.Button(self.login_frame, text="Login", command=self.login).grid(row=2, column=0, columnspan=2, pady=10)
+        ttk.Button(self.login_frame, text="Register", command=self.register).grid(row=3, column=0, columnspan=2, pady=10)
+
+    def create_movie_selection_page(self):
+        # Movie selection design
+        ttk.Label(self.select_movie_frame, text="City:").grid(row=0, column=0, padx=10, pady=10)
+        self.city_var = tk.StringVar()
+        self.city_combobox = ttk.Combobox(self.select_movie_frame, textvariable=self.city_var)
+        self.city_combobox.grid(row=0, column=1, padx=10, pady=10)
+        self.city_combobox['values'] = self.get_cities()
+
+        ttk.Label(self.select_movie_frame, text="Movie:").grid(row=1, column=0, padx=10, pady=10)
+        self.movie_var = tk.StringVar()
+        self.movie_combobox = ttk.Combobox(self.select_movie_frame, textvariable=self.movie_var)
+        self.movie_combobox.grid(row=1, column=1, padx=10, pady=10)
+        self.movie_combobox['values'] = self.get_movies()
+
+        ttk.Label(self.select_movie_frame, text="Theater:").grid(row=2, column=0, padx=10, pady=10)
+        self.theater_var = tk.StringVar()
+        self.theater_combobox = ttk.Combobox(self.select_movie_frame, textvariable=self.theater_var)
+        self.theater_combobox.grid(row=2, column=1, padx=10, pady=10)
+
+        ttk.Label(self.select_movie_frame, text="Timing:").grid(row=3, column=0, padx=10, pady=10)
+        self.timing_var = tk.StringVar()
+        self.timing_combobox = ttk.Combobox(self.select_movie_frame, textvariable=self.timing_var)
+        self.timing_combobox.grid(row=3, column=1, padx=10, pady=10)
+
+        ttk.Button(self.select_movie_frame, text="Search", command=self.search_movies).grid(row=4, column=0, columnspan=2, pady=10)
+
+        self.movies_listbox = tk.Listbox(self.select_movie_frame, width=50, height=10)
+        self.movies_listbox.grid(row=5, column=0, columnspan=2, padx=10, pady=10)
+
+    def create_theater_display_page(self):
+        # Theater display design
+        ttk.Label(self.theater_display_frame, text="City:").grid(row=0, column=0, padx=10, pady=10)
+        self.display_city_var = tk.StringVar()
+        self.display_city_combobox = ttk.Combobox(self.theater_display_frame, textvariable=self.display_city_var)
+        self.display_city_combobox.grid(row=0, column=1, padx=10, pady=10)
+        self.display_city_combobox['values'] = self.get_cities()
+
+        ttk.Label(self.theater_display_frame, text="Movie:").grid(row=1, column=0, padx=10, pady=10)
+        self.display_movie_var = tk.StringVar()
+        self.display_movie_combobox = ttk.Combobox(self.theater_display_frame, textvariable=self.display_movie_var)
+        self.display_movie_combobox.grid(row=1, column=1, padx=10, pady=10)
+        self.display_movie_combobox['values'] = self.get_movies()
+
+        ttk.Button(self.theater_display_frame, text="Display Theaters", command=self.display_theaters).grid(row=2, column=0, columnspan=2, pady=10)
+
+        self.theaters_listbox = tk.Listbox(self.theater_display_frame, width=50, height=10)
+        self.theaters_listbox.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+
+    def create_booking_page(self):
+        # Booking design
+        ttk.Label(self.booking_frame, text="Movie ID:").grid(row=0, column=0, padx=10, pady=10)
+        self.booking_movie_id_var = tk.StringVar()
+        self.booking_movie_id_entry = ttk.Entry(self.booking_frame, textvariable=self.booking_movie_id_var)
+        self.booking_movie_id_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        ttk.Label(self.booking_frame, text="Number of Tickets:").grid(row=1, column=0, padx=10, pady=10)
+        self.number_of_tickets_var = tk.StringVar()
+        self.number_of_tickets_entry = ttk.Entry(self.booking_frame, textvariable=self.number_of_tickets_var)
+        self.number_of_tickets_entry.grid(row=1, column=1, padx=10, pady=10)
+
+        ttk.Button(self.booking_frame, text="Book Tickets", command=self.book_tickets).grid(row=2, column=0, columnspan=2, pady=10)
+
+        self.booking_listbox = tk.Listbox(self.booking_frame, width=50, height=10)
+        self.booking_listbox.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+
+    def create_cancel_page(self):
+        # Cancellation design
+        ttk.Label(self.cancel_frame, text="Booking ID:").grid(row=0, column=0, padx=10, pady=10)
+        self.cancel_booking_var = tk.StringVar()
+        self.cancel_booking_entry = ttk.Entry(self.cancel_frame, textvariable=self.cancel_booking_var)
+        self.cancel_booking_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        ttk.Button(self.cancel_frame, text="Cancel Booking", command=self.cancel_booking).grid(row=1, column=0, columnspan=2, pady=10)
+
+        self.cancel_listbox = tk.Listbox(self.cancel_frame, width=50, height=10)
+        self.cancel_listbox.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
+
+    def login(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT user_id FROM users WHERE username = ? AND password = ?", (username, password))
+        result = c.fetchone()
+        conn.close()
+
+        if result:
+            self.current_user_id = result[0]
+            messagebox.showinfo("Login Success", "You have successfully logged in.")
+        else:
+            messagebox.showerror("Login Failed", "Invalid username or password.")
+
+    def register(self):
+        username = self.username_entry.get()
+        password = self.password_entry.get()
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
+        conn.commit()
+        conn.close()
+
+        messagebox.showinfo("Registration Success", "You have successfully registered. Please login.")
+
+    def get_cities(self):
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT city FROM movies")
+        cities = [row[0] for row in c.fetchall()]
+        conn.close()
+        return cities
+
+    def get_movies(self):
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT movie_name FROM movies")
+        movies = [row[0] for row in c.fetchall()]
+        conn.close()
+        return movies
+
+    def search_movies(self):
+        city = self.city_var.get()
+        movie = self.movie_var.get()
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT * FROM movies WHERE city = ? AND movie_name = ?", (city, movie))
+        movies = c.fetchall()
+        conn.close()
+
+        self.movies_listbox.delete(0, tk.END)
+        for movie in movies:
+            self.movies_listbox.insert(tk.END, f"ID: {movie[0]} | {movie[1]} | {movie[2]} | {movie[3]} | {movie[4]} | Available: {movie[6]}")
+
+    def display_theaters(self):
+        city = self.display_city_var.get()
+        movie = self.display_movie_var.get()
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT * FROM movies WHERE city = ? AND movie_name = ?", (city, movie))
+        theaters = c.fetchall()
+        conn.close()
+
+        self.theaters_listbox.delete(0, tk.END)
+        for theater in theaters:
+            self.theaters_listbox.insert(tk.END, f"Theater: {theater[2]} | Timing: {theater[4]}")
+
+    def book_tickets(self):
+        if not self.current_user_id:
+            messagebox.showerror("Booking Failed", "You must be logged in to book tickets.")
+            return
+
+        movie_id = self.booking_movie_id_var.get()
+        number_of_tickets = int(self.number_of_tickets_var.get())
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT available_tickets FROM movies WHERE movie_id = ?", (movie_id,))
+        result = c.fetchone()
+
+        if not result or result[0] < number_of_tickets:
+            messagebox.showerror("Booking Failed", "Not enough tickets available.")
+            conn.close()
+            return
+
+        receipt_id = ''.join(random.choices('0123456789', k=5))
+        c.execute("INSERT INTO bookings (user_id, movie_id, number_of_tickets, receipt_id) VALUES (?, ?, ?, ?)",
+                  (self.current_user_id, movie_id, number_of_tickets, receipt_id))
+        c.execute("UPDATE movies SET available_tickets = available_tickets - ? WHERE movie_id = ?", (number_of_tickets, movie_id))
+        conn.commit()
+        conn.close()
+
+        self.booking_listbox.insert(tk.END, f"Booked {number_of_tickets} tickets for Movie ID {movie_id}. Receipt ID: {receipt_id}")
+
+        messagebox.showinfo("Booking Success", f"Successfully booked {number_of_tickets} tickets. Receipt ID: {receipt_id}")
+
+    def cancel_booking(self):
+        booking_id = self.cancel_booking_var.get()
+
+        conn = sqlite3.connect('movie_booking.db')
+        c = conn.cursor()
+        c.execute("SELECT movie_id, number_of_tickets FROM bookings WHERE receipt_id = ?", (booking_id,))
+        booking = c.fetchone()
+
+        if not booking:
+            messagebox.showerror("Cancellation Failed", "Invalid Booking ID")
+            return
+
+        movie_id, number_of_tickets = booking
+
+        c.execute("DELETE FROM bookings WHERE receipt_id = ?", (booking_id,))
+        c.execute("UPDATE movies SET available_tickets = available_tickets + ? WHERE movie_id = ?", (number_of_tickets, movie_id))
+        conn.commit()
+        conn.close()
+
+        self.cancel_listbox.insert(tk.END, f"Cancelled booking ID: {booking_id}")
+
+        messagebox.showinfo("Cancellation Success", f"Booking ID {booking_id} has been cancelled")
+
+
+if __name__ == "__main__":
+    app = MovieTicketBookingSystem()
+    app.mainloop()
